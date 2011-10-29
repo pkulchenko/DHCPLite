@@ -6,7 +6,7 @@
 #define DHCP_LEASETIME ((long)60*60*24)
 
 struct Lease {
-	unsigned short mac;
+	unsigned long mac;
 	long expires;
 	byte status;
 };
@@ -14,10 +14,18 @@ struct Lease {
 #define LEASESNUM 12
 Lease Leases[LEASESNUM];
 
-byte ComputeChecksum(byte *buf, int length) {
-  byte crc = 0;
-  for (int i = 0; i < length; i++) crc = crc ^ *(buf+i);
-  return crc;
+unsigned long computeChecksum(byte *buf, int length) {
+  unsigned long h = 0;
+  unsigned long highorder;
+
+  // based on CRC algorithm from http://www.cs.hmc.edu/~geoff/classes/hmc.cs070.200101/homework10/hashfuncs.html
+  for (int i = 0; i < length; i++) {
+    highorder = h & 0xf8000000;    // extract high-order 5 bits from h
+    h = h << 5;                    // shift h left by 5 bits
+    h = h ^ (highorder >> 27);     // move the highorder 5 bits to the low-order end
+    h = h ^ buf[i];                
+  }
+  return h;
 }
 
 byte quads[4];
@@ -26,7 +34,7 @@ byte * long2quad(unsigned long value) {
   return quads;
 }
 
-byte getLease(unsigned short crc) {
+byte getLease(unsigned long crc) {
   for (byte lease = 0; lease < LEASESNUM; lease++)
     if (Leases[lease].mac == crc) return lease+1;
   
@@ -45,7 +53,7 @@ byte getLease(unsigned short crc) {
   return 0;
 }
 
-void setLease(byte lease, unsigned short crc, long expires, byte status) {
+void setLease(byte lease, unsigned long crc, long expires, byte status) {
   if (lease > 0 && lease <= LEASESNUM) {
     Leases[lease-1].mac = crc;
     Leases[lease-1].expires = expires; 
@@ -53,7 +61,7 @@ void setLease(byte lease, unsigned short crc, long expires, byte status) {
   }
 }
 
-int GetOption(int dhcpOption, byte *options, int optionSize, int *optionLength) {
+int getOption(int dhcpOption, byte *options, int optionSize, int *optionLength) {
   for(int i=0; i<optionSize && (options[i] != endOption); i += 2 + options[i+1]) {
     if(options[i] == dhcpOption) {
       if (optionLength) *optionLength = (int)options[i+1];
@@ -77,24 +85,24 @@ int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP) {
   packet->op = DHCP_BOOTREPLY;
   packet->secs = 0; // some of the secs come malformed; don't want to send them back
 
-  unsigned short crcd = ComputeChecksum(packet->chaddr, packet->hlen);
+  unsigned long crc = computeChecksum(packet->chaddr, packet->hlen);
 
-  int dhcpMessageOffset = GetOption(dhcpMessageType, packet->OPT, packetSize-240, NULL);
+  int dhcpMessageOffset = getOption(dhcpMessageType, packet->OPT, packetSize-240, NULL);
   byte dhcpMessage = packet->OPT[dhcpMessageOffset];
 
-  byte lease = getLease(crcd);
+  byte lease = getLease(crc);
   byte response = DHCP_NAK;
   if (dhcpMessage == DHCP_DISCOVER) {
     if (!lease) lease = getLease(0); // use existing lease or get a new one
     if (lease) {
       response = DHCP_OFFER;
-      setLease(lease, crcd, millis() + 10000, 1); // 10s
+      setLease(lease, crc, millis() + 10000, 1); // 10s
     }
   }  
   else if (dhcpMessage == DHCP_REQUEST) {
     if (lease) {
       response = DHCP_ACK;
-      setLease(lease, crcd, millis() + DHCP_LEASETIME * 1000, 1); // DHCP_LEASETIME is in seconds
+      setLease(lease, crc, millis() + DHCP_LEASETIME * 1000, 1); // DHCP_LEASETIME is in seconds
     }
   }
 
@@ -109,7 +117,7 @@ int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP) {
   packet->OPT[currLoc++] = response;
 
   int reqLength; 
-  int reqListOffset = GetOption(dhcpParamRequest, packet->OPT, packetSize-240, &reqLength);
+  int reqListOffset = getOption(dhcpParamRequest, packet->OPT, packetSize-240, &reqLength);
   byte reqList[12]; if (reqLength > 12) reqLength = 12;
   memcpy(reqList, packet->OPT + reqListOffset, reqLength);
 
