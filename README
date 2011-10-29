@@ -1,0 +1,61 @@
+DHCP Lite library for Arduino v0.01
+
+Visit http://notebook.kulchenko.com/dhcplite for updates.
+
+The library has been tested on Arduino Uno/Duemilanove. It correctly
+assigns IP addresses to clients running Windows Vista, Ubuntu 11.04,
+and iOS 4 running on iPod. See LIMITATIONS and KNOWN BUGS.
+
+HISTORY
+
+I have been looking for DHCP server library for Arduino and while
+there are several libraries mentioned in Arduino forums (most notably
+http://www.musically.me.uk/DHCP_Web_Server_12.pde,
+http://www.aether-hemera.com/blog/default.asp?PostId=30, and
+Nebster's DHCP server code from this forum thread
+http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1239258729), 
+some used UDP libraries I could not use and some I simply could not 
+get to work.
+
+I wrote this library in a way that should be easy to integrate with
+other libraries as it only takes a buffer (that is expected to have a DHCP
+message and compiles a response in the same buffer).
+
+INSTALLATION
+
+Copy the content of examples/ and libraries/ to your 
+Arduino folders: arduino/examples/ and arduino/libraries/.
+
+THIRD PARTY SOFTWARE
+
+The library has no external dependencies.
+
+The example is using RedFly library that comes with RedFly shield
+(both are available at www.watterott.net/projects/redfly-shield).
+
+LIMITATIONS
+
+Only DHCP REQUEST and DHCP DISCOVER messages are being handled.
+All DHCP Inform messages get DHCP NAK in response.
+Only 12 leases are tracked by default.
+
+KNOWN BUGS
+
+The library do not work for clients running iOS 2 on iPhone and 
+Snow Leopard v10.6.8 on MacBook Pro. The library responds with a
+DHCP DISCOVER message, but it doesn't seem to be recognized by the client
+and the DHCP REQUEST message never follows.
+
+If you know how to fix this, send me an email.
+
+AUTHOR
+
+Paul Kulchenko (paul@kulchenko.com)
+
+LICENSE
+
+See LICENSE file
+
+HISTORY 
+
+Oct 28 2011  v0.01  First release.
