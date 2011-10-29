@@ -36,12 +36,12 @@ The example is using RedFly library that comes with RedFly shield
 LIMITATIONS
 
 Only DHCP REQUEST and DHCP DISCOVER messages are being handled.
-All DHCP Inform messages get DHCP NAK in response.
+All DHCP INFORM messages get DHCP NAK in response.
 Only 12 leases are tracked by default.
 
 KNOWN BUGS
 
-The library do not work for clients running iOS 2 on iPhone and 
+The library does not work for clients running iOS 2 on iPhone and 
 Snow Leopard v10.6.8 on MacBook Pro. The library responds with a
 DHCP DISCOVER message, but it doesn't seem to be recognized by the client
 and the DHCP REQUEST message never follows.
