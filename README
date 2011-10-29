@@ -1,4 +1,4 @@
-DHCP Lite library for Arduino v0.01
+DHCP Lite library for Arduino v0.02
 
 Visit http://notebook.kulchenko.com/dhcplite for updates.
 
@@ -58,4 +58,5 @@ See LICENSE file
 
 HISTORY 
 
+Oct 29 2011  v0.02  Updated hash to a longer and more robust version.
 Oct 28 2011  v0.01  First release.
