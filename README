@@ -1,10 +1,12 @@
 DHCP Lite library for Arduino v0.02
 
-Visit http://notebook.kulchenko.com/dhcplite for updates.
+This library implements rudimentary DHCP and DNS processing for Arduino.
 
 The library has been tested on Arduino Uno/Duemilanove. It correctly
-assigns IP addresses to clients running Windows Vista, Ubuntu 11.04,
+handles requests from clients running Windows Vista, Ubuntu 11.04,
 and iOS 4 running on iPod. See LIMITATIONS and KNOWN BUGS.
+
+Visit http://notebook.kulchenko.com/dhcplite for updates.
 
 HISTORY
 
@@ -18,8 +20,9 @@ some used UDP libraries I could not use and some I simply could not
 get to work.
 
 I wrote this library in a way that should be easy to integrate with
-other libraries as it only takes a buffer (that is expected to have a DHCP
-message and compiles a response in the same buffer).
+other network libraries as it only takes a buffer (that is expected 
+to have a DHCP message or DNS message) and compiles a response using 
+the same buffer.
 
 INSTALLATION
 
@@ -58,5 +61,6 @@ See LICENSE file
 
 HISTORY 
 
+Oct 29 2011  v0.03  Added DNS processing.
 Oct 29 2011  v0.02  Updated hash to a longer and more robust version.
 Oct 28 2011  v0.01  First release.

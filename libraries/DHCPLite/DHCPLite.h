@@ -6,8 +6,10 @@
 #include <WProgram.h>
 
 /* UDP port numbers for DHCP */
-#define	DHCP_SERVER_PORT	67	/* from server to client */
-#define DHCP_CLIENT_PORT	68	/* from client to server */
+#define	DHCP_SERVER_PORT	67	/* port for server to listen on */
+#define DHCP_CLIENT_PORT	68	/* port for client to use */
+
+#define DNS_SERVER_PORT		53	/* port for server to listed on */
 
 /* DHCP message OP code */
 #define DHCP_BOOTREQUEST	1
@@ -27,69 +29,69 @@
  * @brief	DHCP option and value (cf. RFC1533)
  */
 enum {
-	padOption		=	0,
-	subnetMask		=	1,
-	timerOffset		=	2,
-	routersOnSubnet		=	3,
-	timeServer		=	4,
-	nameServer		=	5,
-	dns			=	6,
-	logServer		=	7,
-	cookieServer		=	8,
-	lprServer		=	9,
-	impressServer		=	10,
-	resourceLocationServer	=	11,
-	hostName		=	12,
-	bootFileSize		=	13,
-	meritDumpFile		=	14,
-	domainName		=	15,
-	swapServer		=	16,
-	rootPath		=	17,
-	extentionsPath		=	18,
-	IPforwarding		=	19,
-	nonLocalSourceRouting	=	20,
-	policyFilter		=	21,
-	maxDgramReasmSize	=	22,
-	defaultIPTTL		=	23,
-	pathMTUagingTimeout	=	24,
-	pathMTUplateauTable	=	25,
-	ifMTU			=	26,
-	allSubnetsLocal		=	27,
-	broadcastAddr		=	28,
-	performMaskDiscovery	=	29,
-	maskSupplier		=	30,
-	performRouterDiscovery	=	31,
-	routerSolicitationAddr	=	32,
-	staticRoute		=	33,
-	trailerEncapsulation	=	34,
-	arpCacheTimeout		=	35,
-	ethernetEncapsulation	=	36,
-	tcpDefaultTTL		=	37,
-	tcpKeepaliveInterval	=	38,
-	tcpKeepaliveGarbage	=	39,
-	nisDomainName		=	40,
-	nisServers		=	41,
-	ntpServers		=	42,
-	vendorSpecificInfo	=	43,
-	netBIOSnameServer	=	44,
-	netBIOSdgramDistServer	=	45,
-	netBIOSnodeType		=	46,
-	netBIOSscope		=	47,
-	xFontServer		=	48,
-	xDisplayManager		=	49,
-	dhcpRequestedIPaddr	=	50,
-	dhcpIPaddrLeaseTime	=	51,
-	dhcpOptionOverload	=	52,
-	dhcpMessageType		=	53,
-	dhcpServerIdentifier	=	54,
-	dhcpParamRequest	=	55,
-	dhcpMsg			=	56,
-	dhcpMaxMsgSize		=	57,
-	dhcpT1value		=	58,
-	dhcpT2value		=	59,
-	dhcpClassIdentifier	=	60,
-	dhcpClientIdentifier	=	61,
-	endOption		=	255
+	dhcpPadOption			=	0,
+	dhcpSubnetMask			=	1,
+	dhcpTimerOffset			=	2,
+	dhcpRoutersOnSubnet		=	3,
+	dhcpTimeServer			=	4,
+	dhcpNameServer			=	5,
+	dhcpDns				=	6,
+	dhcpLogServer			=	7,
+	dhcpCookieServer		=	8,
+	dhcpLprServer			=	9,
+	dhcpImpressServer		=	10,
+	dhcpResourceLocationServer	=	11,
+	dhcpHostName			=	12,
+	dhcpBootFileSize		=	13,
+	dhcpMeritDumpFile		=	14,
+	dhcpDomainName			=	15,
+	dhcpSwapServer			=	16,
+	dhcpRootPath			=	17,
+	dhcpExtentionsPath		=	18,
+	dhcpIPforwarding		=	19,
+	dhcpNonLocalSourceRouting	=	20,
+	dhcpPolicyFilter		=	21,
+	dhcpMaxDgramReasmSize		=	22,
+	dhcpDefaultIPTTL		=	23,
+	dhcpPathMTUagingTimeout		=	24,
+	dhcpPathMTUplateauTable		=	25,
+	dhcpIfMTU			=	26,
+	dhcpAllSubnetsLocal		=	27,
+	dhcpBroadcastAddr		=	28,
+	dhcpPerformMaskDiscovery	=	29,
+	dhcpMaskSupplier		=	30,
+	dhcpPerformRouterDiscovery	=	31,
+	dhcpRouterSolicitationAddr	=	32,
+	dhcpStaticRoute			=	33,
+	dhcpTrailerEncapsulation	=	34,
+	dhcpArpCacheTimeout		=	35,
+	dhcpEthernetEncapsulation	=	36,
+	dhcpTcpDefaultTTL		=	37,
+	dhcpTcpKeepaliveInterval	=	38,
+	dhcpTcpKeepaliveGarbage		=	39,
+	dhcpNisDomainName		=	40,
+	dhcpNisServers			=	41,
+	dhcpNtpServers			=	42,
+	dhcpVendorSpecificInfo		=	43,
+	dhcpNetBIOSnameServer		=	44,
+	dhcpNetBIOSdgramDistServer	=	45,
+	dhcpNetBIOSnodeType		=	46,
+	dhcpNetBIOSscope		=	47,
+	dhcpXFontServer			=	48,
+	dhcpXDisplayManager		=	49,
+	dhcpRequestedIPaddr		=	50,
+	dhcpIPaddrLeaseTime		=	51,
+	dhcpOptionOverload		=	52,
+	dhcpMessageType			=	53,
+	dhcpServerIdentifier		=	54,
+	dhcpParamRequest		=	55,
+	dhcpMsg				=	56,
+	dhcpMaxMsgSize			=	57,
+	dhcpT1value			=	58,
+	dhcpT2value			=	59,
+	dhcpClassIdentifier		=	60,
+	dhcpClientIdentifier		=	61,
+	dhcpEndOption			=	255
 };
 
 /**
@@ -114,6 +116,22 @@ typedef struct RIP_MSG {
 	byte	OPT[]; // 240 offset
 };
 
-int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP);
+#define DNS_QR_MASK (0b10000000)
+typedef struct DNS_MSG {
+	unsigned int	msgid;
+	byte	opflags; // QR + OPCODE (4bits) + AA + TC + RD
+	byte	rarcode; // RA + res (3 bits) + RCODE (4bits)
+        byte    f1;      // filler
+	byte	qdcount;
+	byte	f2;      // filler
+        byte	ancount;
+	unsigned int	nscount;
+	unsigned int	arcount;
+	byte	BODY[]; 
+};
+
+int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP, char *domainName);
+
+int DNSreply(DNS_MSG *packet, int packetSize, byte *serverIP, char *serverName);
 
 #endif
