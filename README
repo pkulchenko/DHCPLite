@@ -1,4 +1,4 @@
-DHCP Lite library for Arduino v0.02
+DHCP Lite library for Arduino v0.04
 
 This library implements rudimentary DHCP and DNS processing for Arduino.
 
@@ -34,7 +34,7 @@ THIRD PARTY SOFTWARE
 The library has no external dependencies.
 
 The example is using RedFly library that comes with RedFly shield
-(both are available at www.watterott.net/projects/redfly-shield).
+(both are available at http://www.watterott.net/projects/redfly-shield).
 
 LIMITATIONS
 
@@ -49,6 +49,14 @@ Snow Leopard v10.6.8 on MacBook Pro. The library responds with a
 DHCP DISCOVER message, but it doesn't seem to be recognized by the client
 and the DHCP REQUEST message never follows.
 
+Windows Vista (and possibly other versions of Windows) seems to rely on 
+DNS Suffix Search List rather than Connection-specific DNS suffix in 
+generating fully qualified hostnames (http://support.microsoft.com/kb/275553).
+This means that even though you can set your domain name to "mydomain.net"
+and the DHCP server will report this using option 15, when you try to
+resolve "arduino", it will send a request for "arduino.mshome.net",
+rather than "arduino.mydomain.net" (which will fail to resolve).
+
 If you know how to fix this, send me an email.
 
 AUTHOR
@@ -61,6 +69,7 @@ See LICENSE file
 
 HISTORY 
 
+Oct 30 2011  v0.04  Added conversion to lowercase hostname and a check for simple hostname to DNS processing.
 Oct 29 2011  v0.03  Added DNS processing.
 Oct 29 2011  v0.02  Updated hash to a longer and more robust version.
 Oct 28 2011  v0.01  First release.

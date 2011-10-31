@@ -24,7 +24,7 @@ unsigned long computeChecksum(byte *buf, int length) {
     highorder = h & 0xf8000000;    // extract high-order 5 bits from h
     h = h << 5;                    // shift h left by 5 bits
     h = h ^ (highorder >> 27);     // move the highorder 5 bits to the low-order end
-    h = h ^ buf[i];                
+    h = h ^ tolower(buf[i]);       // this is to allow "MyPC" and "mypc" to be the same
   }
   return h;
 }
@@ -57,7 +57,7 @@ byte getLease(unsigned long crc) {
 
 byte getLeaseByHost(unsigned long crc) {
   for (byte lease = 0; lease < LEASESNUM; lease++)
-    if (Leases[lease].hostcrc == crc) return lease+1;
+    if (Leases[lease].hostcrc == crc && Leases[lease].status) return lease+1;
   return 0;
 }
 
@@ -120,7 +120,7 @@ int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP, char *domainName)
       unsigned long crc = hostNameOffset 
         ? computeChecksum(packet->OPT + hostNameOffset, hostNameLength) 
         : 0;
-      setLease(lease, crc, millis() + DHCP_LEASETIME * 1000, 1, crc); // DHCP_LEASETIME is in seconds
+      setLease(lease, crc, millis() + DHCP_LEASETIME * 1000, 2, crc); // DHCP_LEASETIME is in seconds
     }
   }
 
@@ -159,7 +159,8 @@ int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP, char *domainName)
         currLoc += populatePacket(packet->OPT, currLoc, reqList[i], serverIP, 4);
         break;
       case dhcpDomainName:
-        currLoc += populatePacket(packet->OPT, currLoc, reqList[i], (byte*)domainName, strlen(domainName));
+        if (domainName && strlen(domainName))
+          currLoc += populatePacket(packet->OPT, currLoc, reqList[i], (byte*)domainName, strlen(domainName));
         break;
     }
   }
@@ -195,8 +196,10 @@ int DNSreply(DNS_MSG *packet, int packetSize, byte *serverIP, char *serverName) 
   unsigned long crc = computeChecksum(packet->BODY + 1, nameLength-1);
 
   // try to find a lease for this host name
-  // if nothing found, then check the serverName for a match
+  // if nothing, then check for the first segment of the name
+  // if still nothing, then check the serverName for a match
   byte lease = getLeaseByHost(crc);
+  if (!lease) lease = getLeaseByHost(computeChecksum(packet->BODY + 1, packet->BODY[0]));
   byte found = lease || crc == computeChecksum((byte*)serverName, strlen(serverName));
 
   packet->qdcount = packet->ancount = 0;
