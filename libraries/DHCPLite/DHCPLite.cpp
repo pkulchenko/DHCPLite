@@ -2,18 +2,13 @@
 
 #include "DHCPLite.h"
 
-// Lease Time: 1 day == { 00, 01, 51, 80 }
-#define DHCP_LEASETIME ((long)60*60*24)
-
-struct Lease {
-	unsigned long maccrc;
-	long expires;
-	byte status;
-	unsigned long hostcrc;
-};
-
-#define LEASESNUM 12
-Lease Leases[LEASESNUM];
+unsigned short htons(unsigned short x) { /** A 16-bit number in host byte order. */
+#if ( SYSTEM_ENDIAN == _ENDIAN_LITTLE_ )
+        return ((x)<<8) | (((x)>>8)&0xFF);
+#else
+        return x;
+#endif          
+}
 
 unsigned long computeChecksum(byte *buf, int length) {
   unsigned long h = 0;
@@ -35,6 +30,18 @@ byte * long2quad(unsigned long value) {
   return quads;
 }
 
+Lease Leases[LEASESNUM];
+
+// leases are numbered 1..LEASENUM (to use 0 to signal no lease)
+void setLease(byte lease, unsigned long crc, long expires, byte status, unsigned long hostcrc) {
+  if (lease > 0 && lease <= LEASESNUM) {
+    Leases[lease-1].maccrc = crc;
+    Leases[lease-1].expires = expires; 
+    Leases[lease-1].status = status;
+    Leases[lease-1].hostcrc = hostcrc;
+  }
+}
+
 byte getLease(unsigned long crc) {
   for (byte lease = 0; lease < LEASESNUM; lease++)
     if (Leases[lease].maccrc == crc) return lease+1;
@@ -45,29 +52,16 @@ byte getLease(unsigned long crc) {
   // and for DHCP DISCOVER we will check once more to assign a new lease
   long currTime = millis();
   for (byte lease = 0; lease < LEASESNUM; lease++)
-    if (Leases[lease].expires < currTime) {
-      Leases[lease].maccrc = 0;
-      Leases[lease].expires = 0; 
-      Leases[lease].status = 0;
-      Leases[lease].hostcrc = 0;
-    }
+    if (Leases[lease].expires < currTime) setLease(lease+1, 0, 0, DHCP_LEASE_AVAIL, 0);
 
   return 0;
 }
 
 byte getLeaseByHost(unsigned long crc) {
   for (byte lease = 0; lease < LEASESNUM; lease++)
-    if (Leases[lease].hostcrc == crc && Leases[lease].status) return lease+1;
+    if (Leases[lease].hostcrc == crc && Leases[lease].status == DHCP_LEASE_ACK) 
+      return lease+1;
   return 0;
-}
-
-void setLease(byte lease, unsigned long crc, long expires, byte status, unsigned long hostcrc) {
-  if (lease > 0 && lease <= LEASESNUM) {
-    Leases[lease-1].maccrc = crc;
-    Leases[lease-1].expires = expires; 
-    Leases[lease-1].status = status;
-    Leases[lease-1].hostcrc = hostcrc;
-  }
 }
 
 int getOption(int dhcpOption, byte *options, int optionSize, int *optionLength) {
@@ -107,7 +101,7 @@ int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP, char *domainName)
     if (!lease) lease = getLease(0); // use existing lease or get a new one
     if (lease) {
       response = DHCP_OFFER;
-      setLease(lease, crc, millis() + 10000, 1, 0); // 10s
+      setLease(lease, crc, millis() + 10000, DHCP_LEASE_OFFER, 0); // 10s
     }
   }  
   else if (dhcpMessage == DHCP_REQUEST) {
@@ -120,7 +114,7 @@ int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP, char *domainName)
       unsigned long crc = hostNameOffset 
         ? computeChecksum(packet->OPT + hostNameOffset, hostNameLength) 
         : 0;
-      setLease(lease, crc, millis() + DHCP_LEASETIME * 1000, 2, crc); // DHCP_LEASETIME is in seconds
+      setLease(lease, crc, millis() + DHCP_LEASETIME * 1000, DHCP_LEASE_ACK, crc); // DHCP_LEASETIME is in seconds
     }
   }
 
@@ -144,7 +138,11 @@ int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP, char *domainName)
   currLoc += populatePacket(packet->OPT, currLoc, dhcpServerIdentifier, serverIP, 4);
 
   // DHCP lease timers: http://www.tcpipguide.com/free/t_DHCPLeaseLifeCycleOverviewAllocationReallocationRe.htm
+  // Renewal Timer (T1): This timer is set by default to 50% of the lease period.
+  // Rebinding Timer (T2): This timer is set by default to 87.5% of the length of the lease.
   currLoc += populatePacket(packet->OPT, currLoc, dhcpIPaddrLeaseTime, long2quad(DHCP_LEASETIME), 4); 
+  currLoc += populatePacket(packet->OPT, currLoc, dhcpT1value, long2quad(DHCP_LEASETIME*0.5), 4); 
+  currLoc += populatePacket(packet->OPT, currLoc, dhcpT2value, long2quad(DHCP_LEASETIME*0.875), 4);
 
   for(int i=0; i<reqLength; i++) {
     switch(reqList[i]) {
@@ -176,11 +174,12 @@ int DNSreply(DNS_MSG *packet, int packetSize, byte *serverIP, char *serverName) 
 
   packet->opflags |= DNS_QR_MASK;
 
-  // check the opcode; only handles 0 (standard query)
+  // check the opcode; only handles standard query
   // also check the number of questions; can only handle 1
-  if (((packet->opflags & ~DNS_QR_MASK) >> 3) != 0 
-   || packet->qdcount != 1) {
-    packet->rarcode = 4; // not implemented
+  if (((packet->opflags & ~DNS_QR_MASK) >> 3) != dnsOpQuery
+   || packet->qdCount != htons(1)) {
+    packet->qdCount = packet->anCount = 0;
+    packet->rarcode = dnsRetNotImplemented;
     return BODYoffset;
   }
 
@@ -202,11 +201,11 @@ int DNSreply(DNS_MSG *packet, int packetSize, byte *serverIP, char *serverName) 
   if (!lease) lease = getLeaseByHost(computeChecksum(packet->BODY + 1, packet->BODY[0]));
   byte found = lease || crc == computeChecksum((byte*)serverName, strlen(serverName));
 
-  packet->qdcount = packet->ancount = 0;
+  packet->qdCount = packet->anCount = 0;
 
   // if nothing found, then return proper error code
   if (!found) {
-    packet->rarcode = 3; // name error (name not found)
+    packet->rarcode = dnsRetNameError; // name not found
     return BODYoffset;
   }
 
@@ -218,8 +217,8 @@ int DNSreply(DNS_MSG *packet, int packetSize, byte *serverIP, char *serverName) 
   memcpy(packet->BODY + answerOffset + 4, long2quad(DHCP_LEASETIME), 4);
   memcpy(packet->BODY + answerOffset + 10, serverIP, 4);
   packet->BODY[answerOffset + 10 + 3] += lease; // lease starts with 1
-  packet->ancount = 1; // count of replies in packet
-  packet->rarcode = 0; // no error
+  packet->anCount = htons(1); // count of replies in packet
+  packet->rarcode = dnsRetNoError;
 
   return BODYoffset + answerOffset + 14;
 } 

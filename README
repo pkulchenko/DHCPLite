@@ -1,4 +1,4 @@
-DHCP Lite library for Arduino v0.04
+DHCP Lite library for Arduino v0.05
 
 This library implements rudimentary DHCP and DNS processing for Arduino.
 
@@ -45,9 +45,9 @@ Only 12 leases are tracked by default.
 KNOWN BUGS
 
 The library does not work for clients running iOS 2 on iPhone and 
-Snow Leopard v10.6.8 on MacBook Pro. The library responds with a
-DHCP DISCOVER message, but it doesn't seem to be recognized by the client
-and the DHCP REQUEST message never follows.
+iOS 5 on iPad. The library responds with a DHCP DISCOVER message, 
+but it doesn't seem to be recognized by the client and the DHCP 
+REQUEST message never follows.
 
 Windows Vista (and possibly other versions of Windows) seems to rely on 
 DNS Suffix Search List rather than Connection-specific DNS suffix in 
@@ -69,6 +69,7 @@ See LICENSE file
 
 HISTORY 
 
+Nov 07 2011  v0.05  Added options for renewal and rebinding timers. Cleaned up code.
 Oct 30 2011  v0.04  Added conversion to lowercase hostname and a check for simple hostname to DNS processing.
 Oct 29 2011  v0.03  Added DNS processing.
 Oct 29 2011  v0.02  Updated hash to a longer and more robust version.

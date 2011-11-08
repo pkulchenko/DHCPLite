@@ -46,7 +46,7 @@ void setup() {
 
 void loop()
 {
-  uint8_t sock, buf[590], *ptr;
+  uint8_t sock, *ptr, buf[DHCP_MESSAGE_SIZE]; 
   uint16_t buf_len, rd, len;
   uint16_t port; //incoming UDP port
   uint8_t ip[4]; //incoming UDP ip
@@ -70,12 +70,7 @@ void loop()
   if (buf_len && (sock != 0xFF)) {
     if (sock == hDHCP) {
       buf_len = DHCPreply((RIP_MSG*)buf, buf_len, serverIP, domainName); // zero returned means the message was not recognized
-      if (buf_len) RedFly.socketSend(sock, buf, buf_len, broadcast, DHCP_CLIENT_PORT);
-    }
-    else if (sock == hHTTP) {
-      RedFly.socketSendPGM(sock, PSTR("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"));
-      RedFly.socketSendPGM(sock, PSTR("Hello, World!"));
-      RedFly.socketClose(sock);      
+      if (buf_len) RedFly.socketSend(sock, buf, buf_len, broadcast, port);
     }
     else if (sock == hDNSTCP || sock == hDNSUDP) {
       buf_len = DNSreply((DNS_MSG*)buf, buf_len, serverIP, serverName); // zero returned means the message was not recognized
@@ -85,6 +80,11 @@ void loop()
       else {
         if (buf_len) RedFly.socketSend(sock, buf, buf_len, ip, port); // send back to the same ip/port the message came from
       }
+    }
+    else if (sock == hHTTP) {
+      RedFly.socketSendPGM(sock, PSTR("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"));
+      RedFly.socketSendPGM(sock, PSTR("Hello, World!"));
+      RedFly.socketClose(sock);      
     }
   }
 }

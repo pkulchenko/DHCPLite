@@ -5,6 +5,8 @@
 
 #include <WProgram.h>
 
+#define DHCP_MESSAGE_SIZE	576     /* a DHCP client must be prepared to receive a message of up to 576 octets */
+
 /* UDP port numbers for DHCP */
 #define	DHCP_SERVER_PORT	67	/* port for server to listen on */
 #define DHCP_CLIENT_PORT	68	/* port for client to use */
@@ -24,6 +26,22 @@
 #define DHCP_NAK		6
 #define	DHCP_RELEASE		7
 #define DHCP_INFORM		8
+
+#define DHCP_LEASETIME ((long)60*60*24) // Lease Time: 1 day == { 00, 01, 51, 80 }
+
+/* DHCP lease status */
+#define DHCP_LEASE_AVAIL	0
+#define DHCP_LEASE_OFFER	1
+#define DHCP_LEASE_ACK		2
+
+struct Lease {
+	unsigned long maccrc;
+	long expires;
+	byte status;
+	unsigned long hostcrc;
+};
+
+#define LEASESNUM 12
 
 /**
  * @brief	DHCP option and value (cf. RFC1533)
@@ -98,36 +116,53 @@ enum {
  * @brief		for the DHCP message
  */
 typedef struct RIP_MSG {
-	byte	op;
-	byte	htype;
-	byte	hlen;
-	byte	hops;
-	unsigned long	xid;
-	unsigned int	secs;
-	unsigned int	flags;
-	byte	ciaddr[4]; // Client IP
-	byte	yiaddr[4]; // Your IP
-	byte	siaddr[4]; // Server IP
-	byte	giaddr[4]; // Gateway IP
-	byte	chaddr[16]; // Client hardware address (zero padded)
-	byte	sname[64];
-	byte	file[128];
-        byte    magic[4]; // 0x63825363
-	byte	OPT[]; // 240 offset
+	byte		op;
+	byte		htype;
+	byte		hlen;
+	byte		hops;
+	uint32_t	xid;
+	uint16_t	secs;
+#define DHCP_FLAG_BROADCAST (0x8000)
+        uint16_t	flags;
+	byte		ciaddr[4];  // Client IP
+	byte		yiaddr[4];  // Your IP
+	byte		siaddr[4];  // Server IP
+	byte		giaddr[4];  // Gateway IP
+	byte		chaddr[16]; // Client hardware address (zero padded)
+	byte		sname[64];
+	byte		file[128];
+#define DHCP_MAGIC (0x63825363)
+        byte    	magic[4]; 
+	byte		OPT[]; // 240 offset
 };
 
 #define DNS_QR_MASK (0b10000000)
 typedef struct DNS_MSG {
-	unsigned int	msgid;
-	byte	opflags; // QR + OPCODE (4bits) + AA + TC + RD
-	byte	rarcode; // RA + res (3 bits) + RCODE (4bits)
-        byte    f1;      // filler
-	byte	qdcount;
-	byte	f2;      // filler
-        byte	ancount;
-	unsigned int	nscount;
-	unsigned int	arcount;
+	uint16_t	msgid;
+	byte		opflags; // QR + OPCODE (4bits) + AA + TC + RD
+	byte		rarcode; // RA + res (3 bits) + RCODE (4bits)
+	uint16_t	qdCount;
+	uint16_t	anCount;
+	uint16_t	nsCount;
+	uint16_t	arCount;
 	byte	BODY[]; 
+};
+
+enum {
+   dnsOpQuery     = 0,
+   dnsOpIQuery    = 1,
+   dnsOpStatus    = 2,
+   dnsOpNotify    = 4,
+   dnsOpUpdate    = 5
+};
+
+enum {
+   dnsRetNoError	= 0,
+   dnsRetFormatError	= 1,
+   dnsRetServerError	= 2,
+   dnsRetNameError 	= 3,
+   dnsRetNotImplemented	= 4,
+   dnsRetRefused	= 5
 };
 
 int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP, char *domainName);
