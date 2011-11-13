@@ -1,4 +1,4 @@
-DHCP Lite library for Arduino v0.05
+DHCP Lite library for Arduino v0.06
 
 This library implements rudimentary DHCP and DNS processing for Arduino.
 
@@ -69,6 +69,7 @@ See LICENSE file
 
 HISTORY 
 
+Nov 12 2011  v0.06  Added AJAX example with keep-alive to read real-time data over HTTP.
 Nov 07 2011  v0.05  Added options for renewal and rebinding timers. Cleaned up code.
 Oct 30 2011  v0.04  Added conversion to lowercase hostname and a check for simple hostname to DNS processing.
 Oct 29 2011  v0.03  Added DNS processing.
