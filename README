@@ -1,10 +1,10 @@
-DHCP Lite library for Arduino v0.06
+DHCP Lite library for Arduino v0.10
 
-This library implements rudimentary DHCP and DNS processing for Arduino.
+This library implements DHCP and DNS server processing for Arduino.
 
 The library has been tested on Arduino Uno/Duemilanove. It correctly
 handles requests from clients running Windows Vista, Ubuntu 11.04,
-and iOS 4 running on iPod. See LIMITATIONS and KNOWN BUGS.
+and iOS v.2, v.4 and v.5. See LIMITATIONS and KNOWN BUGS.
 
 Visit http://notebook.kulchenko.com/dhcplite for updates.
 
@@ -44,11 +44,6 @@ Only 12 leases are tracked by default.
 
 KNOWN BUGS
 
-The library does not work for clients running iOS 2 on iPhone and 
-iOS 5 on iPad. The library responds with a DHCP DISCOVER message, 
-but it doesn't seem to be recognized by the client and the DHCP 
-REQUEST message never follows.
-
 Windows Vista (and possibly other versions of Windows) seems to rely on 
 DNS Suffix Search List rather than Connection-specific DNS suffix in 
 generating fully qualified hostnames (http://support.microsoft.com/kb/275553).
@@ -69,9 +64,17 @@ See LICENSE file
 
 HISTORY 
 
-Nov 12 2011  v0.06  Added AJAX example with keep-alive to read real-time data over HTTP.
-Nov 07 2011  v0.05  Added options for renewal and rebinding timers. Cleaned up code.
-Oct 30 2011  v0.04  Added conversion to lowercase hostname and a check for simple hostname to DNS processing.
+Nov 16 2011  v0.10  Fixed a bug with incorrect CRC being stored when IP 
+                    address is assigned, which caused incorrect processing
+                    of multiple DHCP REQUEST messages from the same IP.
+                    This fixed the issue with iOS and MacOS clients.
+                    Thanks to David Simmons @davidsimmons.com for assistance.
+Nov 12 2011  v0.06  Added AJAX example with keep-alive to read real-time data 
+                    over HTTP.
+Nov 07 2011  v0.05  Added options for renewal and rebinding timers. 
+                    Cleaned up code.
+Oct 30 2011  v0.04  Added conversion to lowercase hostname and a check for 
+                    simple hostname to DNS processing.
 Oct 29 2011  v0.03  Added DNS processing.
 Oct 29 2011  v0.02  Updated hash to a longer and more robust version.
 Oct 28 2011  v0.01  First release.

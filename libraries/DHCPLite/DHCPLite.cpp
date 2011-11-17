@@ -111,10 +111,10 @@ int DHCPreply(RIP_MSG *packet, int packetSize, byte *serverIP, char *domainName)
       // find hostname option in the request and store to provide DNS info
       int hostNameLength;
       int hostNameOffset = getOption(dhcpHostName, packet->OPT, packetSize-OPToffset, &hostNameLength);
-      unsigned long crc = hostNameOffset 
+      unsigned long nameCrc = hostNameOffset 
         ? computeChecksum(packet->OPT + hostNameOffset, hostNameLength) 
         : 0;
-      setLease(lease, crc, millis() + DHCP_LEASETIME * 1000, DHCP_LEASE_ACK, crc); // DHCP_LEASETIME is in seconds
+      setLease(lease, crc, millis() + DHCP_LEASETIME * 1000, DHCP_LEASE_ACK, nameCrc); // DHCP_LEASETIME is in seconds
     }
   }
 
