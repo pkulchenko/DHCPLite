@@ -3,7 +3,11 @@
 #ifndef	DHCP_LITE_H
 #define DHCP_LITE_H
 
-#include <WProgram.h>
+#if defined(ARDUINO) && ARDUINO >= 100
+#include "Arduino.h"
+#else
+#include "WProgram.h"
+#endif
 
 #define DHCP_MESSAGE_SIZE	576     /* a DHCP client must be prepared to receive a message of up to 576 octets */
 
