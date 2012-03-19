@@ -1,4 +1,4 @@
-DHCP Lite library for Arduino v0.12
+DHCP Lite library for Arduino v0.14
 
 This library implements DHCP and DNS server processing for Arduino.
 
@@ -64,6 +64,8 @@ See LICENSE file
 
 HISTORY 
 
+Mar 17 2012  v0.14  Updated the example to store WiFi configuration in
+                    EEPROM and to provide a web interface to update it.
 Mar 10 2012  v0.12  Updated to work with Arduino 1.0.
 Nov 16 2011  v0.10  Fixed a bug with incorrect CRC being stored when IP 
                     address is assigned, which caused incorrect processing

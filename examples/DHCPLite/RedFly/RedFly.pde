@@ -1,50 +1,97 @@
 #include <DHCPLite.h>
 #include <RedFly.h>
-
-//serial format: 9600 Baud, 8N2
-void debugout(char *s)  { RedFly.disable(); Serial.print(s);   RedFly.enable(); }
-void debugoutln(char *s){ RedFly.disable(); Serial.println(s); RedFly.enable(); }
-void debugout(int s)  { RedFly.disable(); Serial.print(s);   RedFly.enable(); }
-void debugoutln(int s){ RedFly.disable(); Serial.println(s); RedFly.enable(); }
+#include <EEPROM.h>
 
 byte serverIP[]  = { 192, 168, 0, 1 }; 
 byte netmask[]   = { 255,255,255,  0 }; 
 byte gateway[]   = {   0,  0,  0,  0 }; // ip from gateway/router (not needed)
 byte broadcast[] = { 255,255,255, 255 };
+byte *currentIP  = serverIP;
 char domainName[] = "mshome.net";
 char serverName[] = "arduino\x06mshome\x03net";
 
 uint8_t hDHCP, hDNSTCP, hDNSUDP, hHTTPUDP, hHTTPTCP = 0xFF; // socket handles; 0xFF means closed/not used; only needed here for HTTP
 
+#define LEDPIN 13
+
+#define HTTP_SERVER_PORT 80
+#define SERVER_PORT 4444
+
+#define CONFIG_VERSION "ar1"
+#define CONFIG_START 0
+
+struct WiFiStorageStruct {
+  char version[4];
+  char ssid[24];
+  char pwd[16];
+  byte addr[4];
+  unsigned int id;
+} WiFiConfig = {
+  CONFIG_VERSION,
+  "NetworkConnectTo",
+  "",
+  {0, 0, 0, 0},
+  0
+};
+
+void loadConfig() {
+  if (EEPROM.read(CONFIG_START + 0) == CONFIG_VERSION[0] &&
+      EEPROM.read(CONFIG_START + 1) == CONFIG_VERSION[1] &&
+      EEPROM.read(CONFIG_START + 2) == CONFIG_VERSION[2])
+    for (unsigned int t=0; t<sizeof(WiFiConfig); t++)
+      *((char*)&WiFiConfig + t) = EEPROM.read(CONFIG_START + t);
+}
+
+void saveConfig() {
+  for (unsigned int t=0; t<sizeof(WiFiConfig); t++)
+    EEPROM.write(CONFIG_START + t, *((char*)&WiFiConfig + t));
+}
+
+void blink(int pin, int n) {
+  for (int i = 0; i < n; i++) {
+    digitalWrite(pin, HIGH); delay(200);
+    digitalWrite(pin, LOW);  delay(200);
+  }
+}
+
+byte adhoc = 0; // 1 - adhoc connection or 0 - connected to AP
+
 void setup() {
   uint8_t ret;
 
+  loadConfig();
+
+  blink(LEDPIN, 1);
+
   //init the WiFi module on the shield
   ret = RedFly.init(115200, HIGH_POWER); //LOW_POWER MED_POWER HIGH_POWER
-  if(ret) debugoutln("INIT ERR"); //there are problems with the communication between the Arduino and the RedFly
-  else {
-    ret = RedFly.join("TestNetwork", IBSS_CREATOR, 10);
-    if(ret) { debugoutln("JOIN ERR"); for(;;); }
-    else {
-      ret = RedFly.begin(serverIP, gateway, netmask);
-      if(ret) { debugoutln("BEGIN ERR"); RedFly.disconnect(); for(;;); }
+  if (!ret) {
+    RedFly.scan();
+    adhoc = ret = RedFly.join(WiFiConfig.ssid, WiFiConfig.pwd, INFRASTRUCTURE);
+    if (ret) {
+      char network[16];
+      sprintf(network, "TestNetwork%d", WiFiConfig.id);
+      ret = RedFly.join(network, IBSS_CREATOR, 10);
+    }
+    if (!ret) {
+      currentIP = adhoc ? serverIP : WiFiConfig.addr;
+      ret = RedFly.begin(currentIP, gateway, netmask);
     }
   }
 
-  // listen for DHCP messages on DHCP_SERVER_PORT (UDP)
-  hDHCP = RedFly.socketListen(PROTO_UDP, DHCP_SERVER_PORT);
-  if(hDHCP == 0xFF) { debugoutln("SOCKET DHCP/UDP ERR"); RedFly.disconnect(); for(;;); }
-  
-  // listen for DNS messages on DNS_SERVER_PORT (both UDP and TCP on the same port)
-  hDNSTCP = RedFly.socketListen(PROTO_TCP, DNS_SERVER_PORT);
-  if(hDNSTCP == 0xFF) { debugoutln("SOCKET DNS/TCP ERR"); RedFly.disconnect(); for(;;); }
-  hDNSUDP = RedFly.socketListen(PROTO_UDP, DNS_SERVER_PORT);
-  if(hDNSUDP == 0xFF) { debugoutln("SOCKET DNS/UDP ERR"); RedFly.disconnect(); for(;;); }
+  if (adhoc) { // only open DHCP/DNS ports in adhoc config
+    // listen for DHCP messages on DHCP_SERVER_PORT (UDP)
+    hDHCP = RedFly.socketListen(PROTO_UDP, DHCP_SERVER_PORT);
+    // listen for DNS messages on DNS_SERVER_PORT (both UDP and TCP on the same port)
+    hDNSTCP = RedFly.socketListen(PROTO_TCP, DNS_SERVER_PORT);
+    hDNSUDP = RedFly.socketListen(PROTO_UDP, DNS_SERVER_PORT);
+  }
 
   // listen for UDP messages on port 80 (to test echo)
-  hHTTPUDP = RedFly.socketListen(PROTO_UDP, 80);
+  hHTTPUDP = RedFly.socketListen(PROTO_UDP, HTTP_SERVER_PORT);
 
-  debugoutln("Setup completed");
+  // 10 blinks on error, 5 blinks on AP connection and 3 blinks on adhoc connection
+  blink(LEDPIN, ret ? 10 : (adhoc ? 3 : 5));
 }
 
 void loop()
@@ -55,7 +102,7 @@ void loop()
   uint8_t ip[4]; //incoming UDP ip
 
   //check if socket is closed and start listening
-  if (hHTTPTCP == 0xFF || RedFly.socketClosed(hHTTPTCP)) hHTTPTCP = RedFly.socketListen(PROTO_TCP, 80); // start listening on port 80
+  if (hHTTPTCP == 0xFF || RedFly.socketClosed(hHTTPTCP)) hHTTPTCP = RedFly.socketListen(PROTO_TCP, HTTP_SERVER_PORT); // start listening on port 80
 
   // get data
   sock    = 0xFF; // 0xFF = return data from all open sockets
@@ -72,11 +119,11 @@ void loop()
   // process and send back data
   if (buf_len && (sock != 0xFF)) {
     if (sock == hDHCP) {
-      buf_len = DHCPreply((RIP_MSG*)buf, buf_len, serverIP, domainName); // zero returned means the message was not recognized
+      buf_len = DHCPreply((RIP_MSG*)buf, buf_len, currentIP, domainName); // zero returned means the message was not recognized
       if (buf_len) RedFly.socketSend(sock, buf, buf_len, broadcast, port);
     }
     else if (sock == hDNSTCP || sock == hDNSUDP) {
-      buf_len = DNSreply((DNS_MSG*)buf, buf_len, serverIP, serverName); // zero returned means the message was not recognized
+      buf_len = DNSreply((DNS_MSG*)buf, buf_len, currentIP, serverName); // zero returned means the message was not recognized
       if (sock == hDNSTCP) {
         if (buf_len) RedFly.socketSend(sock, buf, buf_len);
       }
@@ -91,14 +138,56 @@ void loop()
     else if (sock == hHTTPTCP) {
       const char *OK = PSTR("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n");
       const char *ContentLengthHeader = PSTR("Content-Length: %d\r\n\r\n");
+      const char *STYLE = PSTR("\r\n<html style='font-family:Verdana,Geneva,Georgia,Chicago,Arial,Sans-serif;color:#002d80'>");
       int pin, value;
       char mode, ignore;
       char *out = (char *)buf;
 
       if (strncmp_P(out, PSTR("GET / HTTP"), 10) == 0) {
         RedFly.socketSendPGM(sock, OK);
-        RedFly.socketSendPGM(sock, PSTR("\r\nHello, World! <a href='/D13=1'>Turn LED on digital pin #13 on</a> or <a href='/A1'>read analog input from pin #1</a>"));
+        RedFly.socketSendPGM(sock, STYLE);
+        RedFly.socketSendPGM(sock, PSTR("Hello, World!<br/><br/>You can <a href='/wifi'>update wifi configuration</a>, <a href='/D13=1'>turn LED on (digital pin 13)</a>, or <a href='/A1'>display analog (A1) sensor values</a>"));
         RedFly.socketClose(sock);      
+      }
+      else if (strncmp_P(out, PSTR("GET /wifi HTTP"), 14) == 0) {
+        RedFly.socketSendPGM(sock, OK);
+        RedFly.socketSendPGM(sock, STYLE);
+        RedFly.socketSendPGM(sock, PSTR("<form method='post'>Wifi configuration<p>SSID: <input style='margin-left:48px' value='"));
+        RedFly.socketSend(sock, (uint8_t*)WiFiConfig.ssid, strlen(WiFiConfig.ssid));
+        RedFly.socketSendPGM(sock, PSTR("' name='s'/><br/>Password: <input type='password' name='p' style='margin-left:10px'/><br/>IP address: <input name='a' value='"));
+        sprintf(out, "%d.%d.%d.%d", WiFiConfig.addr[0], WiFiConfig.addr[1], WiFiConfig.addr[2], WiFiConfig.addr[3]);
+        RedFly.socketSend(sock, (uint8_t*)out, strlen(out));
+        RedFly.socketSendPGM(sock, PSTR("'/> (xxx.xxx.xxx.xxx)<br/><br/>Clicking <input type='submit' value='Update'/> will update the configuration and restart the board.</p></form></html>"));
+        RedFly.socketClose(sock);
+      }
+      else if (strncmp_P(out, PSTR("POST /wifi HTTP"), 15) == 0) {
+        char *st, *fi;
+        char *a = NULL, *p = NULL, *s = NULL;
+        out[buf_len] = '\0';
+        if (st = strstr(out, "a="))
+          if (sscanf(st+2, "%d.%d.%d.%d", WiFiConfig.addr, WiFiConfig.addr+1, WiFiConfig.addr+2, WiFiConfig.addr+3) == 4) a = st+2;
+        if (st = strstr(out, "p="))
+          if (fi = strstr(st, "&")) { fi[0] = '\0'; p = st+2; }
+        if (st = strstr(out, "s="))
+          if (fi = strstr(st, "&")) { fi[0] = '\0'; s = st+2; }
+
+        RedFly.socketSendPGM(sock, OK);
+        RedFly.socketSendPGM(sock, STYLE);
+        if (a && p && s) {
+          strcpy(WiFiConfig.pwd, p);
+          strcpy(WiFiConfig.ssid, s);
+          saveConfig();
+          RedFly.socketSendPGM(sock, PSTR("Updated. The board has been restarted with the new configuration.</html>"));
+          RedFly.socketClose(sock);
+
+          // restart Arduino by calling a (pseudo)function at address 0
+          void(* reset) (void) = 0; // declare reset function @ address 0
+          reset();
+        }
+        else {
+          RedFly.socketSendPGM(sock, PSTR("Error. Please return back and update the configuration.</html>"));
+          RedFly.socketClose(sock);
+        }
       }
       else if (sscanf_P(out, PSTR("GET /D%2d=%1d HTTP"), &pin, &value) == 2) {
         pinMode(pin, OUTPUT);
@@ -106,13 +195,11 @@ void loop()
 
         const char * SetPinMessage = PSTR("Set digital pin %d to %d; <a href='/D%d=%d'>toggle</a>");
         sprintf_P(out, SetPinMessage, pin, !!value, pin, !value);
-        int contentLength = strlen(out);
 
-        sprintf_P(out, OK);
-        sprintf_P(out+strlen(out), ContentLengthHeader, contentLength);
-        sprintf_P(out+strlen(out), SetPinMessage, pin, !!value, pin, !value);
-
+        RedFly.socketSendPGM(sock, OK);
+        RedFly.socketSendPGM(sock, STYLE);
         RedFly.socketSend(sock, out);
+        RedFly.socketClose(sock);
       } 
       else if (sscanf_P(out, PSTR("GET /%1[AD]%2d= %1[H]"), &mode, &pin, &ignore) == 3) {
         // get the value         
